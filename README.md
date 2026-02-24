@@ -1,11 +1,13 @@
 # Sales Intelligence AI (Ollama + deepseek-r1:1.5b)
 
-This app uses **Ollama** (local LLM) instead of Gemini for SQL generation and insights.
+# Sales Intelligence AI (GapGPT OpenAI-compatible API)
+
+This app uses a hosted OpenAI-compatible API endpoint (`https://api.gapgpt.app/v1`) for SQL generation and insights.
 
 ## Prerequisites
 
 - Node.js 20+
-- Ollama installed
+- A GapGPT API key
 
 ## Windows setup (PowerShell)
 
@@ -14,42 +16,31 @@ This app uses **Ollama** (local LLM) instead of Gemini for SQL generation and in
    npm install
    ```
 
-2. Start Ollama in a separate PowerShell window:
-   ```powershell
-   ollama serve
-   ```
-
-3. Pull the required model (first time only):
-   ```powershell
-   ollama pull deepseek-r1:1.5b
-   ```
-
-4. Create local env file:
+2. Create local env file:
    ```powershell
    Copy-Item .env.example .env.local
    ```
 
-5. Start the app:
+3. Edit `.env.local` and set your real API key:
+   ```powershell
+   notepad .env.local
+   ```
+
+4. Start the app:
    ```powershell
    npm run dev
    ```
 
-6. Open:
+5. Open:
    - http://localhost:3000
 
 ## Optional configuration
 
 Defaults are:
-- `OLLAMA_BASE_URL=http://127.0.0.1:11434`
-- `OLLAMA_MODEL=deepseek-r1:1.5b`
+- `GAPGPT_BASE_URL=https://api.gapgpt.app/v1`
+- `GAPGPT_MODEL=gpt-4o`
 
-Change them in `.env.local` if your Ollama host/model differs.
+## Security note
 
-## Troubleshooting (Windows)
-
-- If `ollama` is not recognized, restart terminal after installing Ollama.
-- If AI replies fail, verify Ollama is reachable:
-  ```powershell
-  Invoke-RestMethod http://127.0.0.1:11434/api/tags
-  ```
-- If port 3000 is busy, stop the conflicting app/process and rerun `npm run dev`.
+- Keep `GAPGPT_API_KEY` only in `.env.local` (or environment variables in your host).
+- Never commit real API keys to git.

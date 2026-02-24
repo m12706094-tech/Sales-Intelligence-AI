@@ -297,7 +297,7 @@ Return a corrected SQL query.`
           </button>
         </form>
         <p className="text-center text-[10px] text-zinc-400 mt-3 uppercase tracking-widest">
-          Powered by Ollama deepseek-r1:1.5b & Deterministic SQL Engine
+          Powered by GapGPT gpt-4o & Deterministic SQL Engine
         </p>
       </div>
     </div>

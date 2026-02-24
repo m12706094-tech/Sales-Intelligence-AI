@@ -9,8 +9,16 @@ type Schema = {
   columns: Array<{ name: string; type: string; description?: string }>;
 };
 
-const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || "http://127.0.0.1:11434";
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL || "deepseek-r1:1.5b";
+type SQLResponse = {
+  intent: string;
+  query: string;
+  suggestedChart: "line" | "bar" | "pie" | "table";
+  error?: string;
+};
+
+const GAPGPT_BASE_URL = process.env.GAPGPT_BASE_URL || "https://api.gapgpt.app/v1";
+const GAPGPT_API_KEY = process.env.GAPGPT_API_KEY || "";
+const GAPGPT_MODEL = process.env.GAPGPT_MODEL || "gpt-4o";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -107,38 +115,113 @@ async function startServer() {
     ]
   };
 
-  const callOllama = async (prompt: string, system: string, temperature = 0.2) => {
-    const response = await fetch(`${OLLAMA_BASE_URL}/api/generate`, {
+  const callLLM = async (
+    prompt: string,
+    system: string,
+    temperature = 0.2,
+    forceJson = false
+  ) => {
+    if (!GAPGPT_API_KEY) {
+      throw new Error("Missing GAPGPT_API_KEY environment variable");
+    }
+
+    const response = await fetch(`${GAPGPT_BASE_URL}/chat/completions`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${GAPGPT_API_KEY}`
+      },
       body: JSON.stringify({
-        model: OLLAMA_MODEL,
-        prompt,
-        system,
-        stream: false,
-        options: {
-          temperature
-        }
+        model: GAPGPT_MODEL,
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: prompt }
+        ],
+        temperature,
+        response_format: forceJson ? { type: "json_object" } : undefined
       })
     });
 
     if (!response.ok) {
-      throw new Error(`Ollama request failed with status ${response.status}`);
+      const text = await response.text().catch(() => "");
+      throw new Error(`GapGPT request failed with status ${response.status}${text ? `: ${text}` : ""}`);
     }
 
     const data = await response.json();
-    return data.response as string;
+    return (data?.choices?.[0]?.message?.content || "") as string;
   };
 
+  const stripThinking = (text: string) => text.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+
   const extractJsonObject = (text: string) => {
-    const markdownFenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
-    const candidate = markdownFenceMatch ? markdownFenceMatch[1] : text;
-    const firstBrace = candidate.indexOf("{");
-    const lastBrace = candidate.lastIndexOf("}");
-    if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
-      throw new Error("Model did not return valid JSON");
+    const cleaned = stripThinking(text);
+    const markdownFenceMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/i);
+    const candidate = (markdownFenceMatch ? markdownFenceMatch[1] : cleaned).trim();
+
+    try {
+      return JSON.parse(candidate);
+    } catch {
+      // Fall through to brace matching parser below
     }
-    return JSON.parse(candidate.slice(firstBrace, lastBrace + 1));
+
+    let start = -1;
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+
+    for (let i = 0; i < candidate.length; i++) {
+      const ch = candidate[i];
+
+      if (inString) {
+        if (escaped) {
+          escaped = false;
+          continue;
+        }
+        if (ch === "\\") {
+          escaped = true;
+        } else if (ch === '"') {
+          inString = false;
+        }
+        continue;
+      }
+
+      if (ch === '"') {
+        inString = true;
+        continue;
+      }
+
+      if (ch === "{") {
+        if (depth === 0) start = i;
+        depth += 1;
+      } else if (ch === "}") {
+        depth -= 1;
+        if (depth === 0 && start !== -1) {
+          return JSON.parse(candidate.slice(start, i + 1));
+        }
+      }
+    }
+
+    throw new Error("Model did not return valid JSON");
+  };
+
+  const normalizeSqlResponse = (payload: any): SQLResponse => {
+    const intent = typeof payload?.intent === "string" ? payload.intent : "Generated sales query";
+    const query = typeof payload?.query === "string" ? payload.query.trim() : "SELECT 1 WHERE 0";
+    const chart = payload?.suggestedChart;
+    const suggestedChart: SQLResponse["suggestedChart"] =
+      chart === "line" || chart === "bar" || chart === "pie" || chart === "table" ? chart : "table";
+    const error = typeof payload?.error === "string" && payload.error.trim().length > 0 ? payload.error : undefined;
+
+    if (!query.toUpperCase().startsWith("SELECT")) {
+      return {
+        intent,
+        query: "SELECT 1 WHERE 0",
+        suggestedChart: "table",
+        error: "Generated query was unsafe. Please rephrase your request."
+      };
+    }
+
+    return { intent, query, suggestedChart, error };
   };
 
   // API Routes
@@ -147,17 +230,23 @@ async function startServer() {
   });
 
   app.post("/api/ai/sql", async (req, res) => {
-    const { prompt, schema: requestSchema } = req.body;
-    if (!prompt) {
-      return res.status(400).json({ error: "No prompt provided" });
-    }
+    try {
+      const { prompt, schema: requestSchema } = req.body || {};
+      if (!prompt || typeof prompt !== "string") {
+        return res.status(400).json({ error: "No prompt provided" });
+      }
 
-    const activeSchema: Schema = requestSchema || schema;
-    const schemaStr = activeSchema.columns
-      .map((c) => `${c.name} (${c.type})${c.description ? `: ${c.description}` : ""}`)
-      .join(", ");
+      const hasValidRequestSchema =
+        requestSchema &&
+        typeof requestSchema.table === "string" &&
+        Array.isArray(requestSchema.columns);
+      const activeSchema: Schema = hasValidRequestSchema ? requestSchema : schema;
 
-    const systemInstruction = `
+      const schemaStr = activeSchema.columns
+        .map((c) => `${c.name} (${c.type})${c.description ? `: ${c.description}` : ""}`)
+        .join(", ");
+
+      const systemInstruction = `
 You are a SQL expert for a sales database.
 Table name: ${activeSchema.table}
 Columns: ${schemaStr}
@@ -172,12 +261,17 @@ Rules:
 4. If the request is unrelated to sales data, set error and keep query as "SELECT 1 WHERE 0".
 `;
 
-    try {
-      const raw = await callOllama(prompt, systemInstruction, 0.1);
+      const raw = await callLLM(prompt, systemInstruction, 0.1, true);
       const parsed = extractJsonObject(raw);
-      res.json(parsed);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message || "Failed to generate SQL" });
+      return res.json(normalizeSqlResponse(parsed));
+    } catch {
+      // Return a structured fallback instead of a 500 to avoid breaking chat flow.
+      return res.json({
+        intent: "Unable to parse model response",
+        query: "SELECT 1 WHERE 0",
+        suggestedChart: "table",
+        error: "I couldn't generate a valid SQL query. Please rephrase your request."
+      } as SQLResponse);
     }
   });
 
@@ -201,10 +295,31 @@ Rules:
 
     try {
       const dataStr = JSON.stringify((data || []).slice(0, 50));
-      const insight = await callOllama(`User Prompt: ${prompt}\nSQL Query: ${query}\nData Results: ${dataStr}`, systemInstruction, 0.2);
-      res.json({ insight: insight.trim() });
+      const insight = await callLLM(`User Prompt: ${prompt}\nSQL Query: ${query}\nData Results: ${dataStr}`, systemInstruction, 0.2);
+      res.json({ insight: stripThinking(insight).trim() });
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Failed to generate insight" });
+      res.json({ insight: "Insufficient data for a detailed insight." });
+    }
+  });
+
+
+  app.post("/api/query/validate", (req, res) => {
+    const { query } = req.body;
+    if (!query || typeof query !== "string") {
+      return res.status(400).json({ error: "No query provided", valid: false });
+    }
+
+    const normalizedQuery = query.trim().toUpperCase();
+    if (!normalizedQuery.startsWith("SELECT")) {
+      return res.json({ valid: false, error: "Only SELECT queries are allowed" });
+    }
+
+    try {
+      const stmt = db.prepare(query);
+      const columns = stmt.columns().map((col) => col.name);
+      return res.json({ valid: true, columns });
+    } catch (error: any) {
+      return res.json({ valid: false, error: error.message });
     }
   });
 
