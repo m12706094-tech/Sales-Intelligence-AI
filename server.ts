@@ -9,13 +9,6 @@ type Schema = {
   columns: Array<{ name: string; type: string; description?: string }>;
 };
 
-type SQLResponse = {
-  intent: string;
-  query: string;
-  suggestedChart: "line" | "bar" | "pie" | "table";
-  error?: string;
-};
-
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || "http://127.0.0.1:11434";
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || "deepseek-r1:1.5b";
 
@@ -114,12 +107,7 @@ async function startServer() {
     ]
   };
 
-  const callOllama = async (
-    prompt: string,
-    system: string,
-    temperature = 0.2,
-    forceJson = false
-  ) => {
+  const callOllama = async (prompt: string, system: string, temperature = 0.2) => {
     const response = await fetch(`${OLLAMA_BASE_URL}/api/generate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -128,7 +116,6 @@ async function startServer() {
         prompt,
         system,
         stream: false,
-        format: forceJson ? "json" : undefined,
         options: {
           temperature
         }
@@ -143,77 +130,15 @@ async function startServer() {
     return data.response as string;
   };
 
-  const stripThinking = (text: string) => text.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
-
   const extractJsonObject = (text: string) => {
-    const cleaned = stripThinking(text);
-    const markdownFenceMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/i);
-    const candidate = (markdownFenceMatch ? markdownFenceMatch[1] : cleaned).trim();
-
-    try {
-      return JSON.parse(candidate);
-    } catch {
-      // Fall through to brace matching parser below
+    const markdownFenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+    const candidate = markdownFenceMatch ? markdownFenceMatch[1] : text;
+    const firstBrace = candidate.indexOf("{");
+    const lastBrace = candidate.lastIndexOf("}");
+    if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
+      throw new Error("Model did not return valid JSON");
     }
-
-    let start = -1;
-    let depth = 0;
-    let inString = false;
-    let escaped = false;
-
-    for (let i = 0; i < candidate.length; i++) {
-      const ch = candidate[i];
-
-      if (inString) {
-        if (escaped) {
-          escaped = false;
-          continue;
-        }
-        if (ch === "\\") {
-          escaped = true;
-        } else if (ch === '"') {
-          inString = false;
-        }
-        continue;
-      }
-
-      if (ch === '"') {
-        inString = true;
-        continue;
-      }
-
-      if (ch === "{") {
-        if (depth === 0) start = i;
-        depth += 1;
-      } else if (ch === "}") {
-        depth -= 1;
-        if (depth === 0 && start !== -1) {
-          return JSON.parse(candidate.slice(start, i + 1));
-        }
-      }
-    }
-
-    throw new Error("Model did not return valid JSON");
-  };
-
-  const normalizeSqlResponse = (payload: any): SQLResponse => {
-    const intent = typeof payload?.intent === "string" ? payload.intent : "Generated sales query";
-    const query = typeof payload?.query === "string" ? payload.query.trim() : "SELECT 1 WHERE 0";
-    const chart = payload?.suggestedChart;
-    const suggestedChart: SQLResponse["suggestedChart"] =
-      chart === "line" || chart === "bar" || chart === "pie" || chart === "table" ? chart : "table";
-    const error = typeof payload?.error === "string" && payload.error.trim().length > 0 ? payload.error : undefined;
-
-    if (!query.toUpperCase().startsWith("SELECT")) {
-      return {
-        intent,
-        query: "SELECT 1 WHERE 0",
-        suggestedChart: "table",
-        error: "Generated query was unsafe. Please rephrase your request."
-      };
-    }
-
-    return { intent, query, suggestedChart, error };
+    return JSON.parse(candidate.slice(firstBrace, lastBrace + 1));
   };
 
   // API Routes
@@ -222,23 +147,17 @@ async function startServer() {
   });
 
   app.post("/api/ai/sql", async (req, res) => {
-    try {
-      const { prompt, schema: requestSchema } = req.body || {};
-      if (!prompt || typeof prompt !== "string") {
-        return res.status(400).json({ error: "No prompt provided" });
-      }
+    const { prompt, schema: requestSchema } = req.body;
+    if (!prompt) {
+      return res.status(400).json({ error: "No prompt provided" });
+    }
 
-      const hasValidRequestSchema =
-        requestSchema &&
-        typeof requestSchema.table === "string" &&
-        Array.isArray(requestSchema.columns);
-      const activeSchema: Schema = hasValidRequestSchema ? requestSchema : schema;
+    const activeSchema: Schema = requestSchema || schema;
+    const schemaStr = activeSchema.columns
+      .map((c) => `${c.name} (${c.type})${c.description ? `: ${c.description}` : ""}`)
+      .join(", ");
 
-      const schemaStr = activeSchema.columns
-        .map((c) => `${c.name} (${c.type})${c.description ? `: ${c.description}` : ""}`)
-        .join(", ");
-
-      const systemInstruction = `
+    const systemInstruction = `
 You are a SQL expert for a sales database.
 Table name: ${activeSchema.table}
 Columns: ${schemaStr}
@@ -253,17 +172,12 @@ Rules:
 4. If the request is unrelated to sales data, set error and keep query as "SELECT 1 WHERE 0".
 `;
 
-      const raw = await callOllama(prompt, systemInstruction, 0.1, true);
+    try {
+      const raw = await callOllama(prompt, systemInstruction, 0.1);
       const parsed = extractJsonObject(raw);
-      return res.json(normalizeSqlResponse(parsed));
-    } catch {
-      // Return a structured fallback instead of a 500 to avoid breaking chat flow.
-      return res.json({
-        intent: "Unable to parse model response",
-        query: "SELECT 1 WHERE 0",
-        suggestedChart: "table",
-        error: "I couldn't generate a valid SQL query. Please rephrase your request."
-      } as SQLResponse);
+      res.json(parsed);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to generate SQL" });
     }
   });
 
@@ -288,7 +202,7 @@ Rules:
     try {
       const dataStr = JSON.stringify((data || []).slice(0, 50));
       const insight = await callOllama(`User Prompt: ${prompt}\nSQL Query: ${query}\nData Results: ${dataStr}`, systemInstruction, 0.2);
-      res.json({ insight: stripThinking(insight).trim() });
+      res.json({ insight: insight.trim() });
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Failed to generate insight" });
     }
