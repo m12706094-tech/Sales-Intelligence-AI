@@ -2,19 +2,47 @@
 <img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
 </div>
 
-# Run and deploy your AI Studio app
+# Sales Intelligence AI (GapGPT OpenAI-compatible API)
 
-This contains everything you need to run your app locally.
+This app uses a hosted OpenAI-compatible API endpoint (`https://api.gapgpt.app/v1`) for SQL generation and insights.
 
-View your app in AI Studio: https://ai.studio/apps/3d01d67e-8d14-480d-bfe5-0752c089112d
+## Prerequisites
 
-## Run Locally
+- Node.js 20+
+- A GapGPT API key
 
-**Prerequisites:**  Node.js
-
+## Windows setup (PowerShell)
 
 1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+   ```powershell
+   npm install
+   ```
+
+2. Create local env file:
+   ```powershell
+   Copy-Item .env.example .env.local
+   ```
+
+3. Edit `.env.local` and set your real API key:
+   ```powershell
+   notepad .env.local
+   ```
+
+4. Start the app:
+   ```powershell
+   npm run dev
+   ```
+
+5. Open:
+   - http://localhost:3000
+
+## Optional configuration
+
+Defaults are:
+- `GAPGPT_BASE_URL=https://api.gapgpt.app/v1`
+- `GAPGPT_MODEL=gpt-4o`
+
+## Security note
+
+- Keep `GAPGPT_API_KEY` only in `.env.local` (or environment variables in your host).
+- Never commit real API keys to git.
