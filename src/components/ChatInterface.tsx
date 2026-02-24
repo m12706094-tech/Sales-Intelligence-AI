@@ -3,7 +3,7 @@ import { Send, Bot, User, Database, BarChart3, ChevronDown, ChevronUp, AlertCirc
 import { motion, AnimatePresence } from 'motion/react';
 import Markdown from 'react-markdown';
 import { Message, Schema } from '../types';
-import { generateSQL, generateInsight } from '../services/gemini';
+import { generateSQL, generateInsight } from '../services/ollama';
 import { DataVisualization } from './DataVisualization';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -242,7 +242,7 @@ export const ChatInterface: React.FC = () => {
           </button>
         </form>
         <p className="text-center text-[10px] text-zinc-400 mt-3 uppercase tracking-widest">
-          Powered by Gemini 3.1 Pro & Deterministic SQL Engine
+          Powered by Ollama deepseek-r1:1.5b & Deterministic SQL Engine
         </p>
       </div>
     </div>
