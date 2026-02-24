@@ -2,19 +2,58 @@
 <img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
 </div>
 
-# Run and deploy your AI Studio app
+# Sales Intelligence AI (Ollama + deepseek-r1:1.5b)
 
-This contains everything you need to run your app locally.
+This app uses **Ollama** (local LLM) instead of Gemini for SQL generation and insights.
 
-View your app in AI Studio: https://ai.studio/apps/3d01d67e-8d14-480d-bfe5-0752c089112d
+## Prerequisites
 
-## Run Locally
+- Node.js 20+
+- Ollama installed
 
-**Prerequisites:**  Node.js
-
+## Windows setup (PowerShell)
 
 1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+   ```powershell
+   npm install
+   ```
+
+2. Start Ollama in a separate PowerShell window:
+   ```powershell
+   ollama serve
+   ```
+
+3. Pull the required model (first time only):
+   ```powershell
+   ollama pull deepseek-r1:1.5b
+   ```
+
+4. Create local env file:
+   ```powershell
+   Copy-Item .env.example .env.local
+   ```
+
+5. Start the app:
+   ```powershell
+   npm run dev
+   ```
+
+6. Open:
+   - http://localhost:3000
+
+## Optional configuration
+
+Defaults are:
+- `OLLAMA_BASE_URL=http://127.0.0.1:11434`
+- `OLLAMA_MODEL=deepseek-r1:1.5b`
+
+Change them in `.env.local` if your Ollama host/model differs.
+
+## Troubleshooting (Windows)
+
+- If `ollama` is not recognized, restart terminal after installing Ollama.
+- If AI replies fail, verify Ollama is reachable:
+  ```powershell
+  Invoke-RestMethod http://127.0.0.1:11434/api/tags
+  ```
+- If port 3000 is busy, stop the conflicting app/process and rerun `npm run dev`.

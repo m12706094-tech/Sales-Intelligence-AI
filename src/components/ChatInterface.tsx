@@ -3,7 +3,7 @@ import { Send, Bot, User, Database, BarChart3, ChevronDown, ChevronUp, AlertCirc
 import { motion, AnimatePresence } from 'motion/react';
 import Markdown from 'react-markdown';
 import { Message, Schema } from '../types';
-import { generateSQL, generateInsight } from '../services/gemini';
+import { generateSQL, generateInsight } from '../services/ollama';
 import { DataVisualization } from './DataVisualization';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -44,52 +44,107 @@ export const ChatInterface: React.FC = () => {
     }
   }, [messages, isLoading]);
 
+  const prefersChart = (prompt: string) => /\b(chart|graph|plot|visuali[sz]e|visualization)\b/i.test(prompt);
+
+  const prefersTable = (prompt: string) => /\b(table|tabular|rows|list)\b/i.test(prompt);
+
+  const isChartSuitable = (rows: any[]) => {
+    if (!rows || rows.length < 2) return false;
+    const keys = Object.keys(rows[0] || {});
+    const hasNumeric = keys.some((k) => typeof rows[0][k] === 'number');
+    const hasCategory = keys.some((k) => typeof rows[0][k] === 'string');
+    return hasNumeric && hasCategory;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isLoading || !schema) return;
 
-    const userMessage: Message = { role: 'user', content: input };
+    const userPrompt = input.trim();
+    const userMessage: Message = { role: 'user', content: userPrompt };
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
 
     try {
-      // 1. Generate SQL
-      const sqlResult = await generateSQL(input, schema);
-      
-      if (sqlResult.error) {
-        setMessages(prev => [...prev, { role: 'assistant', content: sqlResult.error }]);
-        setIsLoading(false);
+      const wantsChart = prefersChart(userPrompt) && !prefersTable(userPrompt);
+
+      let sqlResult: Awaited<ReturnType<typeof generateSQL>> | null = null;
+      let queryData: { results: any[]; error?: string } | null = null;
+      let lastError = '';
+      let feedback = '';
+
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        const generationPrompt = feedback
+          ? `${userPrompt}
+
+Previous SQL attempt failed because: ${feedback}
+Return a corrected SQL query.`
+          : userPrompt;
+
+        sqlResult = await generateSQL(generationPrompt, schema);
+
+        if (sqlResult.error) {
+          lastError = sqlResult.error;
+          feedback = sqlResult.error;
+          continue;
+        }
+
+        const validationResponse = await fetch('/api/query/validate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: sqlResult.query })
+        });
+        const validationData = await validationResponse.json();
+
+        if (!validationData.valid) {
+          lastError = validationData.error || 'Generated SQL is invalid for the current schema.';
+          feedback = lastError;
+          continue;
+        }
+
+        const queryResponse = await fetch('/api/query', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: sqlResult.query })
+        });
+        queryData = await queryResponse.json();
+
+        if (queryData.error) {
+          lastError = queryData.error;
+          feedback = queryData.error;
+          continue;
+        }
+
+        if (wantsChart && !isChartSuitable(queryData.results)) {
+          lastError = 'Result data is not suitable for charting.';
+          feedback = lastError;
+          queryData = null;
+          continue;
+        }
+
+        break;
+      }
+
+      if (!sqlResult || !queryData) {
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: lastError || 'I could not generate a valid SQL result after multiple attempts. Please rephrase your request.'
+        }]);
         return;
       }
 
-      // 2. Execute Query
-      const queryResponse = await fetch('/api/query', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: sqlResult.query })
-      });
-      const queryData = await queryResponse.json();
+      const insight = await generateInsight(userPrompt, queryData.results, sqlResult.query);
+      const finalChartType = wantsChart ? (sqlResult.suggestedChart === 'table' ? 'bar' : sqlResult.suggestedChart) : 'table';
 
-      if (queryData.error) {
-        setMessages(prev => [...prev, { 
-          role: 'assistant', 
-          content: `I encountered an error while running the query: ${queryData.error}`,
-          query: sqlResult.query
-        }]);
-      } else {
-        // 3. Generate Insight
-        const insight = await generateInsight(input, queryData.results, sqlResult.query);
-
-        setMessages(prev => [...prev, {
-          role: 'assistant',
-          content: insight,
-          query: sqlResult.query,
-          data: queryData.results,
-          chartType: sqlResult.suggestedChart,
-          insight: insight
-        }]);
-      }
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: insight,
+        query: sqlResult.query,
+        data: queryData.results,
+        chartType: finalChartType,
+        insight: insight
+      }]);
     } catch (error) {
       console.error(error);
       setMessages(prev => [...prev, { role: 'assistant', content: 'Sorry, I ran into an unexpected error.' }]);
@@ -242,7 +297,7 @@ export const ChatInterface: React.FC = () => {
           </button>
         </form>
         <p className="text-center text-[10px] text-zinc-400 mt-3 uppercase tracking-widest">
-          Powered by Gemini 3.1 Pro & Deterministic SQL Engine
+          Powered by Ollama deepseek-r1:1.5b & Deterministic SQL Engine
         </p>
       </div>
     </div>
