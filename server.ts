@@ -4,6 +4,14 @@ import Database from "better-sqlite3";
 import path from "path";
 import { fileURLToPath } from "url";
 
+type Schema = {
+  table: string;
+  columns: Array<{ name: string; type: string; description?: string }>;
+};
+
+const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || "http://127.0.0.1:11434";
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || "deepseek-r1:1.5b";
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -83,23 +91,121 @@ async function startServer() {
 
   app.use(express.json());
 
+  const schema: Schema = {
+    table: "sales",
+    columns: [
+      { name: "id", type: "INTEGER" },
+      { name: "name", type: "TEXT", description: "Customer name" },
+      { name: "phone_number", type: "TEXT" },
+      { name: "city", type: "TEXT" },
+      { name: "country", type: "TEXT" },
+      { name: "amount", type: "INTEGER", description: "Quantity of products sold" },
+      { name: "product", type: "TEXT" },
+      { name: "per_price", type: "REAL", description: "Price per unit" },
+      { name: "price", type: "REAL", description: "Total price (amount * per_price)" },
+      { name: "date", type: "TEXT", description: "Date of sale (YYYY-MM-DD)" }
+    ]
+  };
+
+  const callOllama = async (prompt: string, system: string, temperature = 0.2) => {
+    const response = await fetch(`${OLLAMA_BASE_URL}/api/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: OLLAMA_MODEL,
+        prompt,
+        system,
+        stream: false,
+        options: {
+          temperature
+        }
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Ollama request failed with status ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.response as string;
+  };
+
+  const extractJsonObject = (text: string) => {
+    const markdownFenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+    const candidate = markdownFenceMatch ? markdownFenceMatch[1] : text;
+    const firstBrace = candidate.indexOf("{");
+    const lastBrace = candidate.lastIndexOf("}");
+    if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
+      throw new Error("Model did not return valid JSON");
+    }
+    return JSON.parse(candidate.slice(firstBrace, lastBrace + 1));
+  };
+
   // API Routes
   app.get("/api/schema", (req, res) => {
-    res.json({
-      table: "sales",
-      columns: [
-        { name: "id", type: "INTEGER" },
-        { name: "name", type: "TEXT", description: "Customer name" },
-        { name: "phone_number", type: "TEXT" },
-        { name: "city", type: "TEXT" },
-        { name: "country", type: "TEXT" },
-        { name: "amount", type: "INTEGER", description: "Quantity of products sold" },
-        { name: "product", type: "TEXT" },
-        { name: "per_price", type: "REAL", description: "Price per unit" },
-        { name: "price", type: "REAL", description: "Total price (amount * per_price)" },
-        { name: "date", type: "TEXT", description: "Date of sale (YYYY-MM-DD)" }
-      ]
-    });
+    res.json(schema);
+  });
+
+  app.post("/api/ai/sql", async (req, res) => {
+    const { prompt, schema: requestSchema } = req.body;
+    if (!prompt) {
+      return res.status(400).json({ error: "No prompt provided" });
+    }
+
+    const activeSchema: Schema = requestSchema || schema;
+    const schemaStr = activeSchema.columns
+      .map((c) => `${c.name} (${c.type})${c.description ? `: ${c.description}` : ""}`)
+      .join(", ");
+
+    const systemInstruction = `
+You are a SQL expert for a sales database.
+Table name: ${activeSchema.table}
+Columns: ${schemaStr}
+
+Current date: ${new Date().toISOString().split("T")[0]}
+
+Convert the user's natural language request into a valid, safe SQLite SELECT query.
+Rules:
+1. Return ONLY a JSON object with keys: intent, query, suggestedChart, error.
+2. query must always be a SELECT statement.
+3. suggestedChart must be one of: line, bar, pie, table.
+4. If the request is unrelated to sales data, set error and keep query as "SELECT 1 WHERE 0".
+`;
+
+    try {
+      const raw = await callOllama(prompt, systemInstruction, 0.1);
+      const parsed = extractJsonObject(raw);
+      res.json(parsed);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to generate SQL" });
+    }
+  });
+
+  app.post("/api/ai/insight", async (req, res) => {
+    const { prompt, data, query } = req.body;
+    if (!prompt || !query) {
+      return res.status(400).json({ error: "Prompt and query are required" });
+    }
+
+    const systemInstruction = `
+You are a senior revenue analyst.
+Analyze the provided sales data results from a SQL query and provide a concise, executive-ready insight.
+
+Rules:
+1. Be deterministic based on the data provided.
+2. Highlight trends, anomalies, top performers, or percentage changes if applicable.
+3. If there is insufficient data, say "Insufficient data for a detailed insight."
+4. Keep it under 3 sentences.
+5. Do not include chain-of-thought.
+`;
+
+    try {
+      const dataStr = JSON.stringify((data || []).slice(0, 50));
+      const insight = await callOllama(`User Prompt: ${prompt}\nSQL Query: ${query}\nData Results: ${dataStr}`, systemInstruction, 0.2);
+      res.json({ insight: insight.trim() });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to generate insight" });
+    }
   });
 
   app.post("/api/query", (req, res) => {
