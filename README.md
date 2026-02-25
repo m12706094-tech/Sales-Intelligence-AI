@@ -26,12 +26,14 @@ This app uses a hosted OpenAI-compatible API endpoint (`https://api.gapgpt.app/v
    notepad .env.local
    ```
 
-4. Start the app:
+4. The server auto-loads `.env.local` and `.env` via `dotenv`.
+
+5. Start the app:
    ```powershell
    npm run dev
    ```
 
-5. Open:
+6. Open:
    - http://localhost:3000
 
 ## Optional configuration
@@ -39,6 +41,10 @@ This app uses a hosted OpenAI-compatible API endpoint (`https://api.gapgpt.app/v
 Defaults are:
 - `GAPGPT_BASE_URL=https://api.gapgpt.app/v1`
 - `GAPGPT_MODEL=gpt-4o`
+
+## Troubleshooting
+
+- If you keep getting `I couldn't generate a valid SQL query...`, confirm `GAPGPT_API_KEY` is set in `.env.local` and restart the dev server.
 
 ## Security note
 

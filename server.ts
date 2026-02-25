@@ -2,6 +2,7 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import Database from "better-sqlite3";
 import path from "path";
+import dotenv from "dotenv";
 import { fileURLToPath } from "url";
 
 type Schema = {
@@ -20,10 +21,18 @@ const GAPGPT_BASE_URL = process.env.GAPGPT_BASE_URL || "https://api.gapgpt.app/v
 const GAPGPT_API_KEY = process.env.GAPGPT_API_KEY || "";
 const GAPGPT_MODEL = process.env.GAPGPT_MODEL || "gpt-4o";
 
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+dotenv.config({ path: path.join(process.cwd(), ".env.local") });
+dotenv.config();
+
 const db = new Database("sales.db");
+
+if (!GAPGPT_API_KEY) {
+  console.warn("[WARN] GAPGPT_API_KEY is not set. SQL generation will return fallback errors.");
+}
 
 // Initialize Database
 db.exec(`
@@ -264,13 +273,18 @@ Rules:
       const raw = await callLLM(prompt, systemInstruction, 0.1, true);
       const parsed = extractJsonObject(raw);
       return res.json(normalizeSqlResponse(parsed));
-    } catch {
+    } catch (error: any) {
+      const message = String(error?.message || "");
+      const configError = message.includes("GAPGPT_API_KEY")
+        ? "GAPGPT_API_KEY is missing. Add it in .env.local and restart the server."
+        : "I couldn't generate a valid SQL query. Please rephrase your request.";
+
       // Return a structured fallback instead of a 500 to avoid breaking chat flow.
       return res.json({
         intent: "Unable to parse model response",
         query: "SELECT 1 WHERE 0",
         suggestedChart: "table",
-        error: "I couldn't generate a valid SQL query. Please rephrase your request."
+        error: configError
       } as SQLResponse);
     }
   });
