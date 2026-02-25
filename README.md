@@ -50,3 +50,25 @@ Defaults are:
 
 - Keep `GAPGPT_API_KEY` only in `.env.local` (or environment variables in your host).
 - Never commit real API keys to git.
+
+
+## Run with Docker Compose
+
+1. Create local env file and add your real key:
+   ```powershell
+   Copy-Item .env.example .env.local
+   notepad .env.local
+   ```
+
+2. Build and start everything:
+   ```powershell
+   docker compose up -d --build
+   ```
+
+3. Open:
+   - http://localhost:3000
+
+4. Stop services:
+   ```powershell
+   docker compose down
+   ```

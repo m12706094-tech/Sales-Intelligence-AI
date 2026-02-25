@@ -17,10 +17,12 @@ type SQLResponse = {
   error?: string;
 };
 
+dotenv.config({ path: path.join(process.cwd(), ".env.local") });
+dotenv.config();
+
 const GAPGPT_BASE_URL = process.env.GAPGPT_BASE_URL || "https://api.gapgpt.app/v1";
 const GAPGPT_API_KEY = process.env.GAPGPT_API_KEY || "";
 const GAPGPT_MODEL = process.env.GAPGPT_MODEL || "gpt-4o";
-
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
