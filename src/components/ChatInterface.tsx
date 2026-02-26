@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Database, BarChart3, Loader2, PanelLeftClose, PanelLeftOpen, Plus, Pencil, Trash2, Search, Sparkles } from 'lucide-react';
+import { Send, Bot, User, Database, BarChart3, Loader2, PanelLeftClose, PanelLeftOpen, Plus, Pencil, Trash2, Search } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Markdown from 'react-markdown';
 import { Message, Schema } from '../types';
@@ -35,6 +35,7 @@ export const ChatInterface: React.FC = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [editingChatId, setEditingChatId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
+  const [currentPage, setCurrentPage] = useState<'chat' | 'db-settings'>('chat');
 
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -195,6 +196,7 @@ export const ChatInterface: React.FC = () => {
     const newChat = createChat();
     setChats(prev => [newChat, ...prev]);
     setActiveChatId(newChat.id);
+    setCurrentPage('chat');
     setInput('');
   };
 
@@ -254,10 +256,15 @@ export const ChatInterface: React.FC = () => {
 
         {!sidebarCollapsed && (
           <div className="p-3 space-y-2 border-b border-zinc-800">
-            <button className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-zinc-800 flex items-center gap-2">
-              <Sparkles className="w-4 h-4" /> Explore GPTs
+            <button
+              onClick={() => setCurrentPage('db-settings')}
+              className={cn(
+                "w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-zinc-800",
+                currentPage === 'db-settings' && "bg-zinc-800"
+              )}
+            >
+              Databases
             </button>
-            <button className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-zinc-800">Library</button>
           </div>
         )}
 
@@ -287,7 +294,7 @@ export const ChatInterface: React.FC = () => {
               ) : (
                 <div className="flex items-center gap-1">
                   <button
-                    onClick={() => setActiveChatId(chat.id)}
+                    onClick={() => { setActiveChatId(chat.id); setCurrentPage('chat'); }}
                     className="flex-1 text-left truncate text-sm px-2 py-1"
                     title={chat.title}
                   >
@@ -326,6 +333,8 @@ export const ChatInterface: React.FC = () => {
           </div>
         </header>
 
+        {currentPage === 'chat' ? (
+          <>
         <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-6 scroll-smooth">
           <AnimatePresence initial={false}>
             {messages.map((msg, i) => (
@@ -422,6 +431,17 @@ export const ChatInterface: React.FC = () => {
           </div>
         )}
 
+          </>
+        ) : (
+          <div className="flex-1 overflow-y-auto p-8">
+            <div className="max-w-4xl mx-auto bg-white border border-zinc-200 rounded-2xl p-8 shadow-sm">
+              <h2 className="text-xl font-semibold text-zinc-900 mb-2">Database Settings</h2>
+              <p className="text-sm text-zinc-500">This page is intentionally blank for now. Database configuration options will be added here.</p>
+            </div>
+          </div>
+        )}
+
+        {currentPage === 'chat' && (
         <div className="p-6 bg-white border-t border-zinc-200">
           <form onSubmit={handleSubmit} className="max-w-4xl mx-auto relative">
             <input
@@ -443,6 +463,7 @@ export const ChatInterface: React.FC = () => {
             Powered by GapGPT gpt-4o & Deterministic SQL Engine
           </p>
         </div>
+        )}
       </div>
     </div>
   );
