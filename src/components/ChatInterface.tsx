@@ -20,7 +20,7 @@ type ChatSession = {
 
 const initialAssistantMessage: Message = {
   role: 'assistant',
-  content: 'Hello! I am your Sales Intelligence AI. Ask me anything about your sales data, like "What is our total revenue?" or "Show me the monthly revenue trend by country."'
+  content: 'Hello! I am Clario. Ask me anything about your sales data, like "What is our total revenue?" or "Show me the monthly revenue trend by country."'
 };
 
 const createChat = (name?: string): ChatSession => ({
@@ -407,11 +407,11 @@ export const ChatInterface: React.FC = () => {
       <div className="flex-1 flex flex-col h-full overflow-hidden">
         <header className="bg-white border-bottom border-zinc-200 px-6 py-4 flex items-center justify-between shadow-sm z-10">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-200">
-              <BarChart3 className="text-white w-6 h-6" />
+            <div className="w-10 h-10 rounded-xl overflow-hidden shadow-lg shadow-cyan-200 border border-cyan-100 bg-white">
+              <img src="/logo.svg" alt="Clario logo" className="w-full h-full object-cover" />
             </div>
             <div>
-              <h1 className="font-semibold text-zinc-900">Sales Intelligence AI</h1>
+              <h1 className="font-semibold text-zinc-900">Clario</h1>
               <p className="text-xs text-zinc-500 flex items-center gap-1">
                 <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
                 Connected to Sales Database
