@@ -27,6 +27,9 @@ const GAPGPT_MODEL = process.env.GAPGPT_MODEL || "gpt-4o";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+dotenv.config({ path: path.join(process.cwd(), ".env.local") });
+dotenv.config();
+
 const db = new Database("sales.db");
 
 if (!GAPGPT_API_KEY) {
