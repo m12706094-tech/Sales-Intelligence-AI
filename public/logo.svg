@@ -1,0 +1,33 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="80" y1="430" x2="430" y2="80" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0A2A66"/>
+      <stop offset="0.5" stop-color="#0F3F84"/>
+      <stop offset="1" stop-color="#1AA5B8"/>
+    </linearGradient>
+    <linearGradient id="arrow" x1="248" y1="150" x2="438" y2="18" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#67D7E2"/>
+      <stop offset="1" stop-color="#A7EDFF"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="56" y="90" width="360" height="360" rx="72" fill="url(#bg)"/>
+
+  <!-- database stack -->
+  <g fill="#fff">
+    <ellipse cx="214" cy="204" rx="84" ry="30"/>
+    <path d="M130 230c0 16 38 30 84 30s84-14 84-30v30c0 16-38 30-84 30s-84-14-84-30v-30z"/>
+    <path d="M130 290c0 16 38 30 84 30s84-14 84-30v30c0 16-38 30-84 30s-84-14-84-30v-30z"/>
+    <path d="M130 350c0 16 38 30 84 30s84-14 84-30v16c0 16-38 30-84 30s-84-14-84-30v-16z"/>
+  </g>
+
+  <!-- rising arrow / growth mark -->
+  <path d="M178 276c24 10 66 5 96-28l54-59-34-2 19-20 84-16-20 84-19-20-11 31-27-35-46 49c-47 51-106 63-146 47v-31z" fill="url(#arrow)"/>
+
+  <!-- sparkles -->
+  <g fill="#7DE9FF">
+    <path d="M430 82l13-23 13 23-13 9-13-9z"/>
+    <circle cx="454" cy="112" r="8"/>
+    <path d="M408 112l-8-15 15 8 2 13-9-6z"/>
+  </g>
+</svg>
