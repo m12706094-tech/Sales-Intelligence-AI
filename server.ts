@@ -236,6 +236,16 @@ async function startServer() {
   };
 
   // API Routes
+
+  app.get("/api/health/db", (req, res) => {
+    try {
+      const row = db.prepare("SELECT 1 AS ok").get() as { ok: number };
+      res.json({ connected: row?.ok === 1 });
+    } catch (error: any) {
+      res.status(500).json({ connected: false, error: error.message });
+    }
+  });
+
   app.get("/api/schema", (req, res) => {
     res.json(schema);
   });

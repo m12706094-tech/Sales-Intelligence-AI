@@ -38,6 +38,7 @@ export const ChatInterface: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<'chat' | 'db-settings'>('chat');
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [dbConnected, setDbConnected] = useState<boolean>(false);
 
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -75,6 +76,33 @@ export const ChatInterface: React.FC = () => {
     fetch('/api/schema')
       .then(res => res.json())
       .then(setSchema);
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const checkConnection = async () => {
+      try {
+        const response = await fetch('/api/health/db');
+        if (!mounted) return;
+        if (!response.ok) {
+          setDbConnected(false);
+          return;
+        }
+        const data = await response.json();
+        setDbConnected(Boolean(data.connected));
+      } catch {
+        if (mounted) setDbConnected(false);
+      }
+    };
+
+    checkConnection();
+    const intervalId = window.setInterval(checkConnection, 10000);
+
+    return () => {
+      mounted = false;
+      window.clearInterval(intervalId);
+    };
   }, []);
 
   useEffect(() => {
@@ -412,9 +440,20 @@ export const ChatInterface: React.FC = () => {
             </div>
             <div>
               <h1 className="font-semibold text-zinc-900">Clario</h1>
-              <p className="text-xs text-zinc-500 flex items-center gap-1">
-                <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                Connected to Sales Database
+              <p className="text-xs text-zinc-500 flex items-center gap-2">
+                {dbConnected ? (
+                  <>
+                    <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+                    Connected
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    className="px-2 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-200 text-[10px] font-semibold"
+                  >
+                    Disconnected
+                  </button>
+                )}
               </p>
             </div>
           </div>
