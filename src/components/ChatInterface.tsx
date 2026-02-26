@@ -296,34 +296,34 @@ export const ChatInterface: React.FC = () => {
   };
 
   return (
-    <div className="flex h-full bg-[#f3f2f5] overflow-hidden">
+    <div className="flex h-full bg-[#c8cbd4] overflow-hidden p-4">
       <aside className={cn(
-        'relative bg-[#f5f5f7] text-zinc-900 border-r border-[#e6e3eb] transition-all duration-300 flex flex-col',
+        'relative bg-[#222533] text-zinc-100 border-r border-[#2f3345] transition-all duration-300 flex flex-col rounded-2xl shadow-2xl',
         sidebarCollapsed ? 'w-[68px]' : 'w-[290px]'
       )}>
-        <div className="p-3 border-b border-[#e6e3eb] flex items-center gap-2 h-[62px]">
+        <div className="p-3 border-b border-[#2f3345] flex items-center gap-2 h-[62px]">
           <button
             onClick={() => {
               setSidebarCollapsed(v => !v);
               setSearchOpen(false);
             }}
-            className="p-2 rounded-lg hover:bg-[#ece8f6] transition-colors"
+            className="p-2 rounded-lg hover:bg-[#34384a] transition-colors"
             title={sidebarCollapsed ? 'Expand' : 'Collapse'}
           >
             {sidebarCollapsed ? <PanelLeftOpen className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
           </button>
 
           <div className={cn(
-            'flex items-center gap-2 overflow-hidden transition-all duration-300',
+            'flex items-center gap-2 overflow-hidden transition-all duration-300 justify-end',
             sidebarCollapsed ? 'w-0 opacity-0 pointer-events-none' : 'w-[210px] opacity-100'
           )}>
             <button
               onClick={handleCreateChat}
-              className="h-10 flex-1 bg-[#0f1014] hover:bg-black text-white rounded-xl px-3 py-2 text-sm flex items-center gap-2 whitespace-nowrap"
+              className="h-10 w-10 bg-[#ff8a3d] hover:bg-[#ff7a22] text-white rounded-xl flex items-center justify-center shadow-md shadow-orange-900/40"
             >
-              <Plus className="w-4 h-4" /> New chat
+              <Plus className="w-5 h-5" />
             </button>
-            <button onClick={openSearch} className="h-10 w-10 rounded-lg hover:bg-[#ece8f6] flex items-center justify-center transition-colors" title="Search">
+            <button onClick={openSearch} className="h-10 w-10 rounded-lg hover:bg-[#34384a] flex items-center justify-center transition-colors text-zinc-300" title="Search">
               <Search className="w-4 h-4" />
             </button>
           </div>
@@ -331,12 +331,12 @@ export const ChatInterface: React.FC = () => {
 
         {!sidebarCollapsed && (
           <>
-            <div className={cn('p-3 border-b border-[#e6e3eb] transition-all duration-300', searchOpen && 'blur-[2px] opacity-70')}>
+            <div className={cn('p-3 border-b border-[#2f3345] transition-all duration-300', searchOpen && 'blur-[2px] opacity-70')}>
               <button
                 onClick={() => setCurrentPage('db-settings')}
                 className={cn(
-                  'w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-[#ece8f6]',
-                  currentPage === 'db-settings' && 'bg-[#ece8f6] text-[#7b61d1]'
+                  'w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-[#34384a]',
+                  currentPage === 'db-settings' && 'bg-[#34384a] text-[#ffad7a]'
                 )}
               >
                 Databases
@@ -349,7 +349,7 @@ export const ChatInterface: React.FC = () => {
                   key={chat.id}
                   className={cn(
                     'group rounded-lg px-2 py-2',
-                    activeChatId === chat.id ? 'bg-[#ece8f6]' : 'hover:bg-[#efedf4]'
+                    activeChatId === chat.id ? 'bg-[#31364a]' : 'hover:bg-[#2a2e40]'
                   )}
                 >
                   {editingChatId === chat.id ? (
@@ -363,7 +363,7 @@ export const ChatInterface: React.FC = () => {
                           if (e.key === 'Escape') setEditingChatId(null);
                         }}
                         autoFocus
-                        className="w-full px-2 py-1 rounded bg-white text-sm outline-none border border-[#ddd7ea]"
+                        className="w-full px-2 py-1 rounded bg-[#1f2230] text-sm outline-none border border-[#40465d] text-zinc-100"
                       />
                     </div>
                   ) : (
@@ -376,10 +376,10 @@ export const ChatInterface: React.FC = () => {
                         {chat.title}
                       </button>
                       <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity">
-                        <button onClick={() => startEditChat(chat)} className="p-1 hover:bg-[#e6e0f2] rounded" title="Rename chat">
+                        <button onClick={() => startEditChat(chat)} className="p-1 hover:bg-[#3b4158] rounded" title="Rename chat">
                           <Pencil className="w-3.5 h-3.5" />
                         </button>
-                        <button onClick={() => handleDeleteChat(chat.id)} className="p-1 hover:bg-red-100 rounded" title="Delete chat">
+                        <button onClick={() => handleDeleteChat(chat.id)} className="p-1 hover:bg-red-500/20 rounded" title="Delete chat">
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
@@ -397,33 +397,33 @@ export const ChatInterface: React.FC = () => {
                   exit={{ opacity: 0, y: -8 }}
                   className="absolute top-[72px] left-3 right-3 z-20"
                 >
-                  <div className="bg-white/95 border border-[#e1dcef] rounded-xl p-2 shadow-xl backdrop-blur-sm">
+                  <div className="bg-[#252a3a]/95 border border-[#3d4257] rounded-xl p-2 shadow-xl backdrop-blur-sm">
                     <div className="flex items-center gap-2 px-2 py-1">
-                      <Search className="w-4 h-4 text-[#a995db]" />
+                      <Search className="w-4 h-4 text-[#ffad7a]" />
                       <input
                         autoFocus
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         placeholder="Search chats or prompts..."
-                        className="w-full bg-transparent text-sm outline-none text-zinc-800"
+                        className="w-full bg-transparent text-sm outline-none text-zinc-100"
                       />
-                      <button onClick={closeSearch} className="p-1 rounded hover:bg-[#eee9f7]">
-                        <X className="w-4 h-4 text-[#a995db]" />
+                      <button onClick={closeSearch} className="p-1 rounded hover:bg-[#34384a]">
+                        <X className="w-4 h-4 text-[#ffad7a]" />
                       </button>
                     </div>
 
                     <div className="mt-2 max-h-64 overflow-y-auto space-y-1">
                       {searchRecommendations.length === 0 && (
-                        <p className="text-xs text-zinc-500 px-2 py-2">No recommendations yet.</p>
+                        <p className="text-xs text-zinc-400 px-2 py-2">No recommendations yet.</p>
                       )}
                       {searchRecommendations.map((item) => (
                         <button
                           key={item.id}
                           onClick={() => handleSearchPick(item)}
-                          className="w-full text-left text-sm px-2 py-2 rounded hover:bg-[#f1ecfb] transition-colors"
+                          className="w-full text-left text-sm px-2 py-2 rounded hover:bg-[#34384a] transition-colors"
                         >
-                          <span className="text-zinc-800">{item.label}</span>
-                          <span className="text-[#9b8bc9] text-[11px] ml-2">{item.type === 'chat' ? 'Chat' : 'Prompt'}</span>
+                          <span className="text-zinc-100">{item.label}</span>
+                          <span className="text-[#ffb98f] text-[11px] ml-2">{item.type === 'chat' ? 'Chat' : 'Prompt'}</span>
                         </button>
                       ))}
                     </div>
@@ -435,8 +435,8 @@ export const ChatInterface: React.FC = () => {
         )}
       </aside>
 
-      <div className="flex-1 flex flex-col h-full overflow-hidden">
-        <header className="bg-[#fcfcfd] border-b border-[#e7e3ef] px-6 py-4 flex items-center justify-between shadow-sm z-10">
+      <div className="flex-1 flex flex-col h-full overflow-hidden bg-white rounded-2xl border border-[#2d3040]/20 shadow-xl">
+        <header className="bg-[#ffffff] border-b border-[#eceef3] px-6 py-4 flex items-center justify-between shadow-sm z-10">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl overflow-hidden shadow-lg shadow-cyan-200 border border-cyan-100 bg-white">
               <img src="/logo.svg" alt="Clario logo" className="w-full h-full object-cover" />
@@ -464,7 +464,7 @@ export const ChatInterface: React.FC = () => {
 
         {currentPage === 'chat' ? (
           <>
-            <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-6 scroll-smooth bg-[#f7f6f9]">
+            <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-6 scroll-smooth bg-[#f4f5f8]">
               <AnimatePresence initial={false}>
                 {messages.map((msg, i) => (
                   <motion.div
@@ -478,7 +478,7 @@ export const ChatInterface: React.FC = () => {
                   >
                     <div className={cn(
                       'w-8 h-8 rounded-lg flex items-center justify-center shrink-0',
-                      msg.role === 'user' ? 'bg-[#1a1b21]' : 'bg-[#efe9fb]'
+                      msg.role === 'user' ? 'bg-[#222533]' : 'bg-[#ffe6d6]'
                     )}>
                       {msg.role === 'user' ? <User className="w-5 h-5 text-white" /> : <Bot className="w-5 h-5 text-emerald-600" />}
                     </div>
@@ -491,7 +491,7 @@ export const ChatInterface: React.FC = () => {
                         'px-4 py-3 rounded-2xl shadow-sm text-sm leading-relaxed',
                         msg.role === 'user'
                           ? 'bg-[#111217] text-white rounded-tr-none'
-                          : 'bg-white text-zinc-800 border border-[#e4dfef] rounded-tl-none'
+                          : 'bg-white text-zinc-800 border border-[#eceef3] rounded-tl-none'
                       )}>
                         <div className="prose prose-sm max-w-none">
                           <Markdown>{msg.content}</Markdown>
@@ -504,14 +504,14 @@ export const ChatInterface: React.FC = () => {
                             <Database className="w-3 h-3" />
                             VIEW SQL QUERY
                           </summary>
-                          <div className="mt-2 p-3 bg-[#12131a] rounded-lg text-[11px] font-mono text-[#b79df2] overflow-x-auto border border-[#2a2c39]">
+                          <div className="mt-2 p-3 bg-[#1c1f2b] rounded-lg text-[11px] font-mono text-[#ffb48a] overflow-x-auto border border-[#34384a]">
                             {msg.query}
                           </div>
                         </details>
                       )}
 
                       {msg.data && msg.chartType && (
-                        <div className="w-full bg-white border border-[#e4dfef] rounded-2xl p-4 shadow-sm mt-2">
+                        <div className="w-full bg-white border border-[#eceef3] rounded-2xl p-4 shadow-sm mt-2">
                           <div className="flex items-center justify-between mb-4">
                             <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider flex items-center gap-2">
                               <BarChart3 className="w-4 h-4" />
@@ -535,8 +535,8 @@ export const ChatInterface: React.FC = () => {
                   <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center shrink-0">
                     <Bot className="w-5 h-5 text-emerald-600" />
                   </div>
-                  <div className="bg-white border border-[#e4dfef] px-4 py-3 rounded-2xl rounded-tl-none shadow-sm flex items-center gap-2">
-                    <Loader2 className="w-4 h-4 text-[#9c83ec] animate-spin" />
+                  <div className="bg-white border border-[#eceef3] px-4 py-3 rounded-2xl rounded-tl-none shadow-sm flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 text-[#ff8a3d] animate-spin" />
                     <span className="text-sm text-zinc-500 italic">Analyzing data...</span>
                   </div>
                 </motion.div>
@@ -550,9 +550,9 @@ export const ChatInterface: React.FC = () => {
                     <button
                       key={i}
                       onClick={() => handleSuggestionClick(s.prompt)}
-                      className="text-left p-4 bg-white border border-[#e4dfef] rounded-xl hover:border-[#b79df2] hover:shadow-md transition-all group"
+                      className="text-left p-4 bg-white border border-[#eceef3] rounded-xl hover:border-[#ffb48a] hover:shadow-md transition-all group"
                     >
-                      <div className="text-xs font-semibold text-zinc-900 mb-1 group-hover:text-[#8f73e6] transition-colors">{s.title}</div>
+                      <div className="text-xs font-semibold text-zinc-900 mb-1 group-hover:text-[#ff8a3d] transition-colors">{s.title}</div>
                       <div className="text-xs text-zinc-500 line-clamp-1 italic">"{s.prompt}"</div>
                     </button>
                   ))}
@@ -562,7 +562,7 @@ export const ChatInterface: React.FC = () => {
           </>
         ) : (
           <div className="flex-1 overflow-y-auto p-8">
-            <div className="max-w-4xl mx-auto bg-white border border-zinc-200 rounded-2xl p-8 shadow-sm">
+            <div className="max-w-4xl mx-auto bg-white border border-[#eceef3] rounded-2xl p-8 shadow-sm">
               <h2 className="text-xl font-semibold text-zinc-900 mb-2">Database Settings</h2>
               <p className="text-sm text-zinc-500">This page is intentionally blank for now. Database configuration options will be added here.</p>
             </div>
@@ -570,19 +570,19 @@ export const ChatInterface: React.FC = () => {
         )}
 
         {currentPage === 'chat' && (
-          <div className="p-6 bg-[#fcfcfd] border-t border-[#e7e3ef]">
+          <div className="p-6 bg-[#ffffff] border-t border-[#eceef3]">
             <form onSubmit={handleSubmit} className="max-w-4xl mx-auto relative">
               <input
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="Ask a question about your sales..."
-                className="w-full pl-6 pr-14 py-4 bg-[#f4f1fb] border border-[#e5ddf5] rounded-2xl text-sm focus:ring-2 focus:ring-[#b79df2] focus:bg-white transition-all outline-none shadow-inner"
+                className="w-full pl-6 pr-14 py-4 bg-[#f7f8fb] border border-[#eceef3] rounded-2xl text-sm focus:ring-2 focus:ring-[#ffb48a] focus:bg-white transition-all outline-none shadow-inner"
               />
               <button
                 type="submit"
                 disabled={!input.trim() || isLoading}
-                className="absolute right-2 top-2 bottom-2 px-4 bg-[#b79df2] text-white rounded-xl hover:bg-[#a78be8] disabled:opacity-50 disabled:hover:bg-[#b79df2] transition-colors shadow-lg shadow-[#dccff9] flex items-center justify-center"
+                className="absolute right-2 top-2 bottom-2 px-4 bg-[#ff8a3d] text-white rounded-xl hover:bg-[#ff7a22] disabled:opacity-50 disabled:hover:bg-[#ff8a3d] transition-colors shadow-lg shadow-orange-200 flex items-center justify-center"
               >
                 <Send className="w-5 h-5" />
               </button>
