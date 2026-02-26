@@ -2,12 +2,36 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import Database from "better-sqlite3";
 import path from "path";
+import dotenv from "dotenv";
 import { fileURLToPath } from "url";
+
+type Schema = {
+  table: string;
+  columns: Array<{ name: string; type: string; description?: string }>;
+};
+
+type SQLResponse = {
+  intent: string;
+  query: string;
+  suggestedChart: "line" | "bar" | "pie" | "table";
+  error?: string;
+};
+
+dotenv.config({ path: path.join(process.cwd(), ".env.local") });
+dotenv.config();
+
+const GAPGPT_BASE_URL = process.env.GAPGPT_BASE_URL || "https://api.gapgpt.app/v1";
+const GAPGPT_API_KEY = process.env.GAPGPT_API_KEY || "";
+const GAPGPT_MODEL = process.env.GAPGPT_MODEL || "gpt-4o";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const db = new Database("sales.db");
+
+if (!GAPGPT_API_KEY) {
+  console.warn("[WARN] GAPGPT_API_KEY is not set. SQL generation will return fallback errors.");
+}
 
 // Initialize Database
 db.exec(`
@@ -83,23 +107,243 @@ async function startServer() {
 
   app.use(express.json());
 
-  // API Routes
-  app.get("/api/schema", (req, res) => {
-    res.json({
-      table: "sales",
-      columns: [
-        { name: "id", type: "INTEGER" },
-        { name: "name", type: "TEXT", description: "Customer name" },
-        { name: "phone_number", type: "TEXT" },
-        { name: "city", type: "TEXT" },
-        { name: "country", type: "TEXT" },
-        { name: "amount", type: "INTEGER", description: "Quantity of products sold" },
-        { name: "product", type: "TEXT" },
-        { name: "per_price", type: "REAL", description: "Price per unit" },
-        { name: "price", type: "REAL", description: "Total price (amount * per_price)" },
-        { name: "date", type: "TEXT", description: "Date of sale (YYYY-MM-DD)" }
-      ]
+  const schema: Schema = {
+    table: "sales",
+    columns: [
+      { name: "id", type: "INTEGER" },
+      { name: "name", type: "TEXT", description: "Customer name" },
+      { name: "phone_number", type: "TEXT" },
+      { name: "city", type: "TEXT" },
+      { name: "country", type: "TEXT" },
+      { name: "amount", type: "INTEGER", description: "Quantity of products sold" },
+      { name: "product", type: "TEXT" },
+      { name: "per_price", type: "REAL", description: "Price per unit" },
+      { name: "price", type: "REAL", description: "Total price (amount * per_price)" },
+      { name: "date", type: "TEXT", description: "Date of sale (YYYY-MM-DD)" }
+    ]
+  };
+
+  const callLLM = async (
+    prompt: string,
+    system: string,
+    temperature = 0.2,
+    forceJson = false
+  ) => {
+    if (!GAPGPT_API_KEY) {
+      throw new Error("Missing GAPGPT_API_KEY environment variable");
+    }
+
+    const response = await fetch(`${GAPGPT_BASE_URL}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${GAPGPT_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: GAPGPT_MODEL,
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: prompt }
+        ],
+        temperature,
+        response_format: forceJson ? { type: "json_object" } : undefined
+      })
     });
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      throw new Error(`GapGPT request failed with status ${response.status}${text ? `: ${text}` : ""}`);
+    }
+
+    const data = await response.json();
+    return (data?.choices?.[0]?.message?.content || "") as string;
+  };
+
+  const stripThinking = (text: string) => text.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+
+  const extractJsonObject = (text: string) => {
+    const cleaned = stripThinking(text);
+    const markdownFenceMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/i);
+    const candidate = (markdownFenceMatch ? markdownFenceMatch[1] : cleaned).trim();
+
+    try {
+      return JSON.parse(candidate);
+    } catch {
+      // Fall through to brace matching parser below
+    }
+
+    let start = -1;
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+
+    for (let i = 0; i < candidate.length; i++) {
+      const ch = candidate[i];
+
+      if (inString) {
+        if (escaped) {
+          escaped = false;
+          continue;
+        }
+        if (ch === "\\") {
+          escaped = true;
+        } else if (ch === '"') {
+          inString = false;
+        }
+        continue;
+      }
+
+      if (ch === '"') {
+        inString = true;
+        continue;
+      }
+
+      if (ch === "{") {
+        if (depth === 0) start = i;
+        depth += 1;
+      } else if (ch === "}") {
+        depth -= 1;
+        if (depth === 0 && start !== -1) {
+          return JSON.parse(candidate.slice(start, i + 1));
+        }
+      }
+    }
+
+    throw new Error("Model did not return valid JSON");
+  };
+
+  const normalizeSqlResponse = (payload: any): SQLResponse => {
+    const intent = typeof payload?.intent === "string" ? payload.intent : "Generated sales query";
+    const query = typeof payload?.query === "string" ? payload.query.trim() : "SELECT 1 WHERE 0";
+    const chart = payload?.suggestedChart;
+    const suggestedChart: SQLResponse["suggestedChart"] =
+      chart === "line" || chart === "bar" || chart === "pie" || chart === "table" ? chart : "table";
+    const error = typeof payload?.error === "string" && payload.error.trim().length > 0 ? payload.error : undefined;
+
+    if (!query.toUpperCase().startsWith("SELECT")) {
+      return {
+        intent,
+        query: "SELECT 1 WHERE 0",
+        suggestedChart: "table",
+        error: "Generated query was unsafe. Please rephrase your request."
+      };
+    }
+
+    return { intent, query, suggestedChart, error };
+  };
+
+  // API Routes
+
+  app.get("/api/health/db", (req, res) => {
+    try {
+      const row = db.prepare("SELECT 1 AS ok").get() as { ok: number };
+      res.json({ connected: row?.ok === 1 });
+    } catch (error: any) {
+      res.status(500).json({ connected: false, error: error.message });
+    }
+  });
+
+  app.get("/api/schema", (req, res) => {
+    res.json(schema);
+  });
+
+  app.post("/api/ai/sql", async (req, res) => {
+    try {
+      const { prompt, schema: requestSchema } = req.body || {};
+      if (!prompt || typeof prompt !== "string") {
+        return res.status(400).json({ error: "No prompt provided" });
+      }
+
+      const hasValidRequestSchema =
+        requestSchema &&
+        typeof requestSchema.table === "string" &&
+        Array.isArray(requestSchema.columns);
+      const activeSchema: Schema = hasValidRequestSchema ? requestSchema : schema;
+
+      const schemaStr = activeSchema.columns
+        .map((c) => `${c.name} (${c.type})${c.description ? `: ${c.description}` : ""}`)
+        .join(", ");
+
+      const systemInstruction = `
+You are a SQL expert for a sales database.
+Table name: ${activeSchema.table}
+Columns: ${schemaStr}
+
+Current date: ${new Date().toISOString().split("T")[0]}
+
+Convert the user's natural language request into a valid, safe SQLite SELECT query.
+Rules:
+1. Return ONLY a JSON object with keys: intent, query, suggestedChart, error.
+2. query must always be a SELECT statement.
+3. suggestedChart must be one of: line, bar, pie, table.
+4. If the request is unrelated to sales data, set error and keep query as "SELECT 1 WHERE 0".
+`;
+
+      const raw = await callLLM(prompt, systemInstruction, 0.1, true);
+      const parsed = extractJsonObject(raw);
+      return res.json(normalizeSqlResponse(parsed));
+    } catch (error: any) {
+      const message = String(error?.message || "");
+      const configError = message.includes("GAPGPT_API_KEY")
+        ? "GAPGPT_API_KEY is missing. Add it in .env.local and restart the server."
+        : "I couldn't generate a valid SQL query. Please rephrase your request.";
+
+      // Return a structured fallback instead of a 500 to avoid breaking chat flow.
+      return res.json({
+        intent: "Unable to parse model response",
+        query: "SELECT 1 WHERE 0",
+        suggestedChart: "table",
+        error: configError
+      } as SQLResponse);
+    }
+  });
+
+  app.post("/api/ai/insight", async (req, res) => {
+    const { prompt, data, query } = req.body;
+    if (!prompt || !query) {
+      return res.status(400).json({ error: "Prompt and query are required" });
+    }
+
+    const systemInstruction = `
+You are a senior revenue analyst.
+Analyze the provided sales data results from a SQL query and provide a concise, executive-ready insight.
+
+Rules:
+1. Be deterministic based on the data provided.
+2. Highlight trends, anomalies, top performers, or percentage changes if applicable.
+3. If there is insufficient data, say "Insufficient data for a detailed insight."
+4. Keep it under 3 sentences.
+5. Do not include chain-of-thought.
+`;
+
+    try {
+      const dataStr = JSON.stringify((data || []).slice(0, 50));
+      const insight = await callLLM(`User Prompt: ${prompt}\nSQL Query: ${query}\nData Results: ${dataStr}`, systemInstruction, 0.2);
+      res.json({ insight: stripThinking(insight).trim() });
+    } catch (error: any) {
+      res.json({ insight: "Insufficient data for a detailed insight." });
+    }
+  });
+
+
+  app.post("/api/query/validate", (req, res) => {
+    const { query } = req.body;
+    if (!query || typeof query !== "string") {
+      return res.status(400).json({ error: "No query provided", valid: false });
+    }
+
+    const normalizedQuery = query.trim().toUpperCase();
+    if (!normalizedQuery.startsWith("SELECT")) {
+      return res.json({ valid: false, error: "Only SELECT queries are allowed" });
+    }
+
+    try {
+      const stmt = db.prepare(query);
+      const columns = stmt.columns().map((col) => col.name);
+      return res.json({ valid: true, columns });
+    } catch (error: any) {
+      return res.json({ valid: false, error: error.message });
+    }
   });
 
   app.post("/api/query", (req, res) => {
